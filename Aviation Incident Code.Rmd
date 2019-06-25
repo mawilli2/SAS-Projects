@@ -1,0 +1,104 @@
+---
+title: "Stat 426 aaccidentsa report exam"
+author: "Malik Williams"
+aaccidentse: "April 14, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+accidents = read.csv("NTSBGA2016.csv")
+View(accidents)
+```
+
+```{r}
+summary(accidents)
+```
+
+```{r}
+mod.log <- glm(Fatal ~ ., data = accidents, family = binomial)
+summary(mod.log)
+```
+
+```{r}
+mod.probit <- glm(Fatal ~ ., family = binomial(link = "probit"), 
+    data = accidents)
+summary(mod.probit)
+```
+```{r}
+mod.cloglog <- glm(Fatal ~ ., family = binomial(link = "cloglog"), 
+    data = accidents)
+summary(mod.cloglog)
+```
+
+```{r}
+nullmodlog <- glm(Fatal ~ 1, family=binomial, data=accidents)
+step(nullmodlog,~ Day + Lat+ Lon + NonUSA + Nonairplane + Phase + Event + Personal + Multiple, direction="forward")
+step(mod.log)
+```
+
+```{r}
+nullmodprobit <- glm(Fatal ~ 1, family=binomial(link="probit"), data=accidents)
+step(nullmodprobit,~ Day + Lat+ Lon + NonUSA + Nonairplane + Phase + Event + Personal + Multiple, direction="forward")
+step(mod.probit)
+```
+
+```{r}
+nullmodloglog <- glm(Fatal ~ 1, family=binomial(link="cloglog"), data=accidents)
+step(nullmodloglog,~ Day + Lat+ Lon + NonUSA + Nonairplane + Phase + Event + Personal + Multiple, direction="forward")
+step(mod.cloglog)
+```
+```{r}
+best_mod <- glm(Fatal ~ NonUSA + Nonairplane + Phase + Event + 
+    Multiple, family = binomial(link = "cloglog"), 
+    data = accidents)
+summary(best_mod)
+```
+```{r}
+ cor(accidents$Fatal, fitted(best_mod)) #correlation measure
+```
+```{r}
+as.numeric((logLik(best_mod) - logLik(nullmodloglog)) / (0 - logLik(nullmodloglog))) #likelihood measure D
+```
+
+```{r}
+pi0 <- 0.5
+table(y=accidents$Fatal, yhat=as.numeric(fitted(best_mod) > pi0)) 
+#Apparent Classification Table
+```
+```{r}
+sensitivity = 106 / (106 + 113) 
+specificity = 1013 / (1013 + 52)
+sensitivity
+specificity
+```
+```{r}
+ pihatcv <- numeric(nrow(accidents))
+for(i in 1:nrow(accidents)){
+pihatcv[i] <- predict(update(best_mod, subset=-i), newdata=accidents[i,],
+type="response")}
+table(y=accidents$Fatal, yhat=as.numeric(pihatcv > pi0))
+```
+```{r}
+sensitivity = 106 / (106 + 113) 
+specificity = 1012 / (1012 + 53)
+sensitivity
+specificity
+```
+
+```{r}
+pihat <- fitted(best_mod)
+false.neg <- c(0,cumsum(tapply(accidents$Fatal,pihat,sum)))
+true.neg <- c(0,cumsum(table(pihat))) - false.neg
+plot(1-true.neg/max(true.neg), 1-false.neg/max(false.neg), type="l", main="ROC Curve", xlab="1 - Specificity", ylab="Sensitivity", asp=1)
+abline(a=0, b=1, lty=2, col="blue")
+```
+```{r}
+mean(outer(pihat[accidents$Fatal==1], pihat[accidents$Fatal==0], ">") + 0.5 * outer(pihat[accidents$Fatal==1], pihat[accidents$Fatal==0], "=="))
+#Concordance Index
+```
+
+
